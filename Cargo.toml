@@ -1,0 +1,21 @@
+[package]
+name = "paclogrs"
+description = "Pacman log but prettier"
+version = "0.1.0"
+
+authors = ["Kenji 'Nhqml' Gaillac <kenji.gaillac@epita.fr>"]
+edition = "2021"
+
+license = "GPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/nhqml/paclogrs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.1.2", features = ["derive"] }
+regex = "1.5.4"
+lazy_static = "1.4.0"
+termcolor = "1.1.2"
+anyhow = "1.0.53"
+atty = "0.2.14"
