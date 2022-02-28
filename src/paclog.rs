@@ -11,10 +11,10 @@ use termcolor::{BufferedStandardStream, Color, ColorChoice, ColorSpec, WriteColo
 
 #[derive(Debug)]
 pub enum PacmanAction {
-    INSTALLED,
-    UPGRADED,
-    DOWNGRADED,
-    REMOVED,
+    Installed,
+    Upgraded,
+    Downgraded,
+    Removed,
 }
 
 impl TryFrom<&str> for PacmanAction {
@@ -22,10 +22,10 @@ impl TryFrom<&str> for PacmanAction {
 
     fn try_from(action: &str) -> Result<Self, Self::Error> {
         match action {
-            "installed" => Ok(Self::INSTALLED),
-            "upgraded" => Ok(Self::UPGRADED),
-            "downgraded" => Ok(Self::DOWNGRADED),
-            "removed" => Ok(Self::REMOVED),
+            "installed" => Ok(Self::Installed),
+            "upgraded" => Ok(Self::Upgraded),
+            "downgraded" => Ok(Self::Downgraded),
+            "removed" => Ok(Self::Removed),
             _ => Err(anyhow!("`{action}` is not a valid action!")),
         }
     }
@@ -52,7 +52,7 @@ pub struct PackageChange {
 }
 
 impl PackageChange {
-    fn name_matches(name: &str, regexes: &Vec<Regex>) -> bool {
+    fn name_matches(name: &str, regexes: &[Regex]) -> bool {
         if regexes.is_empty() {
             return true;
         }
@@ -65,7 +65,7 @@ impl PackageChange {
         false
     }
 
-    pub fn from_line(line: String, regexes: &Vec<Regex>) -> AnyResult<Self> {
+    pub fn from_line(line: String, regexes: &[Regex]) -> AnyResult<Self> {
         if let Some(cap) = PACKAGE_CHANGE_REGEX.captures(&line) {
             let name = String::from(
                 cap.name("package")
@@ -97,18 +97,18 @@ impl PackageChange {
                     version_change.get(2).map(|m| m.as_str().to_string()),
                 );
                 match action {
-                    PacmanAction::INSTALLED => {
+                    PacmanAction::Installed => {
                         current_version = Some(lv.ok_or(anyhow!("No current package version"))?);
                     }
-                    PacmanAction::UPGRADED => {
+                    PacmanAction::Upgraded => {
                         previous_version = Some(lv.ok_or(anyhow!("No previous package version"))?);
                         current_version = Some(rv.ok_or(anyhow!("No current package version"))?);
                     }
-                    PacmanAction::DOWNGRADED => {
+                    PacmanAction::Downgraded => {
                         current_version = Some(lv.ok_or(anyhow!("No current package version"))?);
                         previous_version = Some(rv.ok_or(anyhow!("No previous package version"))?);
                     }
-                    PacmanAction::REMOVED => {
+                    PacmanAction::Removed => {
                         previous_version = Some(lv.ok_or(anyhow!("No previous package version"))?);
                     }
                 }
@@ -140,72 +140,72 @@ impl PackageChange {
 
         let mut stdout = BufferedStandardStream::stdout(color_choice);
 
-        stdout.set_color(&ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
-        stdout.write(format!("[{}]", self.datetime).as_bytes())?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        stdout.write_all(format!("[{}]", self.datetime).as_bytes())?;
 
         match self.action {
-            PacmanAction::INSTALLED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Green)))?;
-                stdout.write(b" installed ")?;
+            PacmanAction::Installed => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+                stdout.write_all(b" installed ")?;
             }
-            PacmanAction::UPGRADED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write(b" upgraded ")?;
+            PacmanAction::Upgraded => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                stdout.write_all(b" upgraded ")?;
             }
-            PacmanAction::DOWNGRADED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-                stdout.write(b" downgraded ")?;
+            PacmanAction::Downgraded => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
+                stdout.write_all(b" downgraded ")?;
             }
-            PacmanAction::REMOVED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Red)))?;
-                stdout.write(b" removed ")?;
+            PacmanAction::Removed => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
+                stdout.write_all(b" removed ")?;
             }
         }
 
         stdout.set_color(
-            &ColorSpec::new()
+            ColorSpec::new()
                 .set_fg(Some(Color::Yellow))
                 .set_bold(true)
                 .set_intense(true),
         )?;
-        stdout.write(self.name.as_bytes())?;
+        stdout.write_all(self.name.as_bytes())?;
 
         stdout.reset()?;
-        stdout.write(b" (")?;
+        stdout.write_all(b" (")?;
 
         match self.action {
-            PacmanAction::INSTALLED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write(self.current_version.as_ref().unwrap().as_bytes())?;
+            PacmanAction::Installed => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
             }
-            PacmanAction::UPGRADED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-                stdout.write(self.previous_version.as_ref().unwrap().as_bytes())?;
+            PacmanAction::Upgraded => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
+                stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
 
                 stdout.reset()?;
-                stdout.write(b" -> ")?;
+                stdout.write_all(b" -> ")?;
 
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write(self.current_version.as_ref().unwrap().as_bytes())?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
             }
-            PacmanAction::DOWNGRADED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write(self.previous_version.as_ref().unwrap().as_bytes())?;
+            PacmanAction::Downgraded => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
 
                 stdout.reset()?;
-                stdout.write(b" -> ")?;
+                stdout.write_all(b" -> ")?;
 
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-                stdout.write(self.current_version.as_ref().unwrap().as_bytes())?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
+                stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
             }
-            PacmanAction::REMOVED => {
-                stdout.set_color(&ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-                stdout.write(self.previous_version.as_ref().unwrap().as_bytes())?;
+            PacmanAction::Removed => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
+                stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
             }
         }
 
         stdout.reset()?;
-        stdout.write(b")\n")?;
+        stdout.write_all(b")\n")?;
 
         Ok(())
     }
