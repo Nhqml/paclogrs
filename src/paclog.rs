@@ -100,13 +100,9 @@ impl PackageChange {
                     PacmanAction::Installed => {
                         current_version = Some(lv.ok_or(anyhow!("No current package version"))?);
                     }
-                    PacmanAction::Upgraded => {
+                    PacmanAction::Upgraded | PacmanAction::Downgraded => {
                         previous_version = Some(lv.ok_or(anyhow!("No previous package version"))?);
                         current_version = Some(rv.ok_or(anyhow!("No current package version"))?);
-                    }
-                    PacmanAction::Downgraded => {
-                        current_version = Some(lv.ok_or(anyhow!("No current package version"))?);
-                        previous_version = Some(rv.ok_or(anyhow!("No previous package version"))?);
                     }
                     PacmanAction::Removed => {
                         previous_version = Some(lv.ok_or(anyhow!("No previous package version"))?);
@@ -178,7 +174,7 @@ impl PackageChange {
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
                 stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
             }
-            PacmanAction::Upgraded => {
+            PacmanAction::Upgraded | PacmanAction::Downgraded => {
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
                 stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
 
@@ -186,16 +182,6 @@ impl PackageChange {
                 stdout.write_all(b" -> ")?;
 
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
-            }
-            PacmanAction::Downgraded => {
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
-
-                stdout.reset()?;
-                stdout.write_all(b" -> ")?;
-
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
                 stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
             }
             PacmanAction::Removed => {

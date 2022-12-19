@@ -1,7 +1,7 @@
 [package]
 name = "paclogrs"
 description = "Pacman log but prettier"
-version = "0.1.0"
+version = "0.1.1"
 
 authors = ["Kenji 'Nhqml' Gaillac <kenji.gaillac@epita.fr>"]
 edition = "2021"
