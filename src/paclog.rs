@@ -5,9 +5,29 @@ use std::{
 
 use anyhow::anyhow;
 use anyhow::Result as AnyResult;
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
 use lazy_static::lazy_static;
 use regex::Regex;
 use termcolor::{BufferedStandardStream, Color, ColorChoice, ColorSpec, WriteColor};
+
+#[derive(Debug, PartialEq, PartialOrd)]
+pub(crate) enum PacmanDateTime {
+    WithTimezone(DateTime<Local>),
+    WithoutTimezone(NaiveDateTime),
+}
+
+impl std::fmt::Display for PacmanDateTime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::WithTimezone(dt) => dt.format("%Y-%m-%d %H:%M"),
+                Self::WithoutTimezone(dt) => dt.format("%Y-%m-%d %H:%M"),
+            }
+        )
+    }
+}
 
 #[derive(Debug)]
 pub enum PacmanAction {
@@ -33,30 +53,27 @@ impl TryFrom<&str> for PacmanAction {
 
 lazy_static! {
     static ref PACKAGE_CHANGE_REGEX: Regex = Regex::new(
-        r"\[(?P<date>.*)\] \[ALPM\] (?P<action>[[[:alpha:]]]+) (?P<package>[a-z0-9@_+][a-z0-9@._+-]*) \((?P<version>.*)\)"
+        r"\[(?P<datetime>.*)\] \[ALPM\] (?P<action>[[[:alpha:]]]+) (?P<package>[a-z0-9@_+][a-z0-9@._+-]*) \((?P<version>.*)\)"
     )
-    .unwrap();
+    .expect("Valid regex");
 
     static ref PACKAGE_VERSION_REGEX: Regex = Regex::new(
         r"(^[a-z0-9.:+-]+)(?: -> ([a-z0-9.:+-]+$))?"
-    ).unwrap();
+    )
+    .expect("Valid regex");
 }
 
 #[derive(Debug)]
 pub struct PackageChange {
     name: String,
-    datetime: String,
+    datetime: PacmanDateTime,
     action: PacmanAction,
     previous_version: Option<String>,
     current_version: Option<String>,
 }
 
 impl PackageChange {
-    fn name_matches(name: &str, regexes: &[Regex]) -> bool {
-        if regexes.is_empty() {
-            return true;
-        }
-
+    fn matches_any_regex(name: &str, regexes: &[Regex]) -> bool {
         for regex in regexes {
             if regex.is_match(name) {
                 return true;
@@ -72,9 +89,9 @@ impl PackageChange {
                     .ok_or(anyhow!("No package name found"))?
                     .as_str(),
             );
-            if !Self::name_matches(&name, regexes) {
+            if !(regexes.is_empty() || Self::matches_any_regex(&name, regexes)) {
                 return Err(anyhow!(
-                    "Package `{name}` does not match one of the provided Regex"
+                    "Package `{name}` does not match one of the provided regexes"
                 ));
             }
 
@@ -83,7 +100,20 @@ impl PackageChange {
                     .ok_or(anyhow!("No PacmanAction found"))?
                     .as_str(),
             )?;
-            let datetime = String::from(cap.name("date").ok_or(anyhow!("No date found"))?.as_str());
+            let datetime = cap
+                .name("datetime")
+                .ok_or(anyhow!("No datetime found"))?
+                .as_str();
+
+            let datetime = if let Ok(dt) = DateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%z")
+            {
+                PacmanDateTime::WithTimezone(dt.with_timezone(&Local))
+            } else if let Ok(dt) = NaiveDateTime::parse_from_str(datetime, "%Y-%m-%d %H:%M") {
+                PacmanDateTime::WithoutTimezone(dt)
+            } else {
+                println!("Unable to parse datetime from `{}`", datetime);
+                return Err(anyhow!("Unable to parse datetime from `{}`", datetime));
+            };
 
             if let Some(version_change) = PACKAGE_VERSION_REGEX.captures(
                 cap.name("version")
@@ -123,6 +153,13 @@ impl PackageChange {
             "Unable to create a new PackageChange from `{}`",
             line
         ))
+    }
+
+    pub fn date(&self) -> NaiveDate {
+        match &self.datetime {
+            PacmanDateTime::WithTimezone(dt) => dt.date_naive(),
+            PacmanDateTime::WithoutTimezone(dt) => dt.date(),
+        }
     }
 }
 
@@ -172,21 +209,41 @@ impl PackageChange {
         match self.action {
             PacmanAction::Installed => {
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
+                stdout.write_all(
+                    self.current_version
+                        .as_ref()
+                        .expect("Buffer written without error")
+                        .as_bytes(),
+                )?;
             }
             PacmanAction::Upgraded | PacmanAction::Downgraded => {
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-                stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
+                stdout.write_all(
+                    self.previous_version
+                        .as_ref()
+                        .expect("Buffer written without error")
+                        .as_bytes(),
+                )?;
 
                 stdout.reset()?;
                 stdout.write_all(b" -> ")?;
 
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
-                stdout.write_all(self.current_version.as_ref().unwrap().as_bytes())?;
+                stdout.write_all(
+                    self.current_version
+                        .as_ref()
+                        .expect("Buffer written without error")
+                        .as_bytes(),
+                )?;
             }
             PacmanAction::Removed => {
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))?;
-                stdout.write_all(self.previous_version.as_ref().unwrap().as_bytes())?;
+                stdout.write_all(
+                    self.previous_version
+                        .as_ref()
+                        .expect("Buffer written without error")
+                        .as_bytes(),
+                )?;
             }
         }
 
@@ -203,7 +260,7 @@ pub fn get_changes(regexes: Vec<Regex>) -> AnyResult<Vec<PackageChange>> {
     let file_bufreader = BufReader::new(File::open(PACMAN_LOG_FILE)?);
 
     let mut changes = Vec::new();
-    for line in file_bufreader.lines().filter_map(|r| r.ok()) {
+    for line in file_bufreader.lines().map_while(Result::ok) {
         if let Ok(change) = PackageChange::from_line(line, &regexes) {
             changes.push(change);
         }
